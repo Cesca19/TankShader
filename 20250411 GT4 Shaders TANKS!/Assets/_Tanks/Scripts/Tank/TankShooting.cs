@@ -27,7 +27,9 @@ namespace Tanks.Complete
         public float m_ExplosionForce = 1000f;              // The amount of force added to a tank at the centre of the explosion.
         [Tooltip("The radius of the explosion in Unity unit. Force decrease with distance to the center, and an tank further than this from the shell explosion won't be impacted by the explosion")]
         public float m_ExplosionRadius = 5f;                // The maximum distance away from the explosion tanks can be and are still affected.
-
+        [Tooltip("The particle system prefab for the explosion visual effect")]
+        public GameObject m_ExplosionVFX;      // Reference to the explosion VFX prefab
+        
         [HideInInspector]
         public TankInputUser m_InputUser;           // The Input User component for that tanks. Contains the Input Actions. 
         
@@ -209,6 +211,7 @@ namespace Tanks.Complete
             explosionData.m_ExplosionForce = m_ExplosionForce;
             explosionData.m_ExplosionRadius = m_ExplosionRadius;
             explosionData.m_MaxDamage = m_MaxDamage;
+            explosionData.m_ExplosionVFX = m_ExplosionVFX;
             
             // Increase the damage if extra damage PowerUp is active
             if (m_HasSpecialShell)
