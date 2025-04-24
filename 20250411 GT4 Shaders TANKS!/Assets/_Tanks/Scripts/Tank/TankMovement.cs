@@ -4,102 +4,101 @@ using UnityEngine.InputSystem.Users;
 
 namespace Tanks.Complete
 {
-    //Ensure it run before the TankShooting component as TankShooting grabs the InputUser from this when there are no
-    //GameManager set (used during learning experience to test tank in empty scenes)
     [DefaultExecutionOrder(-10)]
     public class TankMovement : MonoBehaviour
     {
         [Tooltip("The player number. Without a tank selection menu, Player 1 is left keyboard control, Player 2 is right keyboard")]
-        public int m_PlayerNumber = 1;              // Used to identify which tank belongs to which player.  This is set by this tank's manager.
+        public int m_PlayerNumber = 1;
         [Tooltip("The speed in unity unit/second the tank move at")]
-        public float m_Speed = 12f;                 // How fast the tank moves forward and back.
+        public float m_Speed = 12f;
         [Tooltip("The speed in deg/s that tank will rotate at")]
-        public float m_TurnSpeed = 180f;            // How fast the tank turns in degrees per second.
+        public float m_TurnSpeed = 180f;
         [Tooltip("If set to true, the tank auto orient and move toward the pressed direction instead of rotating on left/right and move forward on up")]
         public bool m_IsDirectControl;
-        public AudioSource m_MovementAudio;         // Reference to the audio source used to play engine sounds. NB: different to the shooting audio source.
-        public AudioClip m_EngineIdling;            // Audio to play when the tank isn't moving.
-        public AudioClip m_EngineDriving;           // Audio to play when the tank is moving.
-		public float m_PitchRange = 0.2f;           // The amount by which the pitch of the engine noises can vary.
+        public AudioSource m_MovementAudio;
+        public AudioClip m_EngineIdling;
+        public AudioClip m_EngineDriving;
+        public float m_PitchRange = 0.2f;
         [Tooltip("Is set to true this will be controlled by the computer and not a player")]
-        public bool m_IsComputerControlled = false; // Is this tank player or computer controlled
+        public bool m_IsComputerControlled = false;
         [HideInInspector]
-        public TankInputUser m_InputUser;            // The Input User component for that tanks. Contains the Input Actions.
-        
-        public Rigidbody Rigidbody => m_Rigidbody;
-        
-        public int ControlIndex { get; set; } = -1; //this define the index of the control 1 = left keyboard or pad, 2 = right keyboard, -1 = no control
-        
-        private string m_MovementAxisName;          // The name of the input axis for moving forward and back.
-        private string m_TurnAxisName;              // The name of the input axis for turning.
-        private Rigidbody m_Rigidbody;              // Reference used to move the tank.
-        private float m_MovementInputValue;         // The current value of the movement input.
-        private float m_TurnInputValue;             // The current value of the turn input.
-        private float m_OriginalPitch;              // The pitch of the audio source at the start of the scene.
-        
-        private InputAction m_MoveAction;             // The InputAction used to move, retrieved from TankInputUser
-        private InputAction m_TurnAction;             // The InputAction used to shot, retrieved from TankInputUser
+        public TankInputUser m_InputUser;
 
-        private Vector3 m_RequestedDirection;       // In Direct Control mode, store the direction the user *wants* to go toward
-        
-        private void Awake ()
+        // New field for dust particle prefab
+        [Tooltip("The dust particle prefab to play when the tank moves")]
+        public GameObject m_DustParticlePrefab;
+
+        public Rigidbody Rigidbody => m_Rigidbody;
+        public int ControlIndex { get; set; } = -1;
+
+        private string m_MovementAxisName;
+        private string m_TurnAxisName;
+        private Rigidbody m_Rigidbody;
+        private float m_MovementInputValue;
+        private float m_TurnInputValue;
+        private float m_OriginalPitch;
+        private InputAction m_MoveAction;
+        private InputAction m_TurnAction;
+        private Vector3 m_RequestedDirection;
+
+        // Particle system instance
+        private GameObject m_DustParticleInstance;
+        private ParticleSystem m_DustParticleSystem;
+
+        private void Awake()
         {
-            m_Rigidbody = GetComponent<Rigidbody> ();
-            
+            m_Rigidbody = GetComponent<Rigidbody>();
             m_InputUser = GetComponent<TankInputUser>();
             if (m_InputUser == null)
                 m_InputUser = gameObject.AddComponent<TankInputUser>();
+
+            // Instantiate the dust particle GameObject if a prefab is assigned
+            if (m_DustParticlePrefab != null)
+            {
+                m_DustParticleInstance = Instantiate(m_DustParticlePrefab, transform);
+                // Get the ParticleSystem component from the instantiated GameObject's children
+                m_DustParticleSystem = m_DustParticleInstance.GetComponentInChildren<ParticleSystem>();
+                if (m_DustParticleSystem == null)
+                {
+                    Debug.LogError("Dust Particle Prefab does not contain a ParticleSystem component in its children!", m_DustParticlePrefab);
+                }
+                else
+                {
+                    m_DustParticleSystem.Stop(); // Ensure it's stopped initially
+                }
+            }
         }
 
-
-        private void OnEnable ()
+        private void OnEnable()
         {
-            // Computer controlled tank are kinematic
             m_Rigidbody.isKinematic = false;
-
-            // Also reset the input values.
             m_MovementInputValue = 0f;
             m_TurnInputValue = 0f;
-
         }
 
-
-        private void OnDisable ()
+        private void OnDisable()
         {
-            // When the tank is turned off, set it to kinematic so it stops moving.
             m_Rigidbody.isKinematic = true;
         }
 
-
-        private void Start ()
+        private void Start()
         {
-            // If this is computer controlled...
+            // Existing Start code...
             if (m_IsComputerControlled)
             {
-                // but it doesn't have an AI component...
                 var ai = GetComponent<TankAI>();
                 if (ai == null)
                 {
-                    // we add it, to ensure this will control the tank.
-                    // This is only useful when user test tank in empty scene, otherwise the TankManager ensure 
-                    // computer controlled tank are setup properly
                     gameObject.AddComponent<TankAI>();
                 }
             }
 
-            // If no control index was set, this mean this is a scene without a GameManager and that tank was manually
-            // added to an empty scene, so we used the manually set Player Number in the Inspector as the ControlIndex,
-            // so Player 1 will be ControlIndex 1 -> KeyboardLeft and Player 2 -> KeyboardRight
             if (ControlIndex == -1 && !m_IsComputerControlled)
             {
                 ControlIndex = m_PlayerNumber;
             }
-            
+
             var mobileControl = FindAnyObjectByType<MobileUIControl>();
-            
-            // By default, ControlIndex 1 is matched to KeyboardLeft. But if there is a mobile UI control component in the scene
-            // and it is active (so we either are on mobile or it was force activated to test by the user) then we instead 
-            // match ControlIndex 1 to the virtual Gamepad on screen.
             if (mobileControl != null && ControlIndex == 1)
             {
                 m_InputUser.SetNewInputUser(InputUser.PerformPairingWithDevice(mobileControl.Device));
@@ -107,61 +106,46 @@ namespace Tanks.Complete
             }
             else
             {
-                // otherwise if no mobile ui control is active, ControlIndex is KeyboardLeft scheme and ControlIndex 2 is KeyboardRight
                 m_InputUser.ActivateScheme(ControlIndex == 1 ? "KeyboardLeft" : "KeyboardRight");
             }
 
-            // The axes names are based on player number.
             m_MovementAxisName = "Vertical";
             m_TurnAxisName = "Horizontal";
-            
-            // Get the action input from the TankInputUser component which will have taken care of copying them and
-            // binding them to the right device and control scheme
             m_MoveAction = m_InputUser.ActionAsset.FindAction(m_MovementAxisName);
             m_TurnAction = m_InputUser.ActionAsset.FindAction(m_TurnAxisName);
-            
-            // actions need to be enabled before they can react to input
             m_MoveAction.Enable();
             m_TurnAction.Enable();
-            
-            // Store the original pitch of the audio source.
             m_OriginalPitch = m_MovementAudio.pitch;
         }
 
-
-        private void Update ()
+        private void Update()
         {
-            // Computer controlled tank will be moved by the TankAI component, so only read input for player controlled tanks
             if (!m_IsComputerControlled)
             {
                 m_MovementInputValue = m_MoveAction.ReadValue<float>();
                 m_TurnInputValue = m_TurnAction.ReadValue<float>();
             }
-            
-            EngineAudio ();
+
+            EngineAudio();
+            UpdateDustParticles(); // Update dust particles based on movement
         }
 
-
-        private void EngineAudio ()
+        private void EngineAudio()
         {
-            // If there is no input (the tank is stationary)...
-            if (Mathf.Abs (m_MovementInputValue) < 0.1f && Mathf.Abs (m_TurnInputValue) < 0.1f)
+            // Existing EngineAudio code...
+            if (Mathf.Abs(m_MovementInputValue) < 0.1f && Mathf.Abs(m_TurnInputValue) < 0.1f)
             {
-                // ... and if the audio source is currently playing the driving clip...
                 if (m_MovementAudio.clip == m_EngineDriving)
                 {
-                    // ... change the clip to idling and play it.
                     m_MovementAudio.clip = m_EngineIdling;
-                    m_MovementAudio.pitch = Random.Range (m_OriginalPitch - m_PitchRange, m_OriginalPitch + m_PitchRange);
-                    m_MovementAudio.Play ();
+                    m_MovementAudio.pitch = Random.Range(m_OriginalPitch - m_PitchRange, m_OriginalPitch + m_PitchRange);
+                    m_MovementAudio.Play();
                 }
             }
             else
             {
-                // Otherwise if the tank is moving and if the idling clip is currently playing...
                 if (m_MovementAudio.clip == m_EngineIdling)
                 {
-                    // ... change the clip to driving and play.
                     m_MovementAudio.clip = m_EngineDriving;
                     m_MovementAudio.pitch = Random.Range(m_OriginalPitch - m_PitchRange, m_OriginalPitch + m_PitchRange);
                     m_MovementAudio.Play();
@@ -169,63 +153,70 @@ namespace Tanks.Complete
             }
         }
 
-
-        private void FixedUpdate ()
+        private void UpdateDustParticles()
         {
-            // If this is using a gamepad or have direct control enabled, this used a different movement method : instead of
-            // "up" behind moving forward for the tank, it instead takes the gamepad move direction as the desired forward for the tank
-            // and will compute the speed and rotation needed to move the tank toward that direction.
-            if (m_InputUser.InputUser.controlScheme.Value.name == "Gamepad" ||  m_IsDirectControl)
+            if (m_DustParticleSystem == null) return;
+
+            // Play dust particles when the tank is moving
+            if (Mathf.Abs(m_MovementInputValue) > 0.1f || Mathf.Abs(m_TurnInputValue) > 0.1f)
+            {
+                if (!m_DustParticleSystem.isPlaying)
+                {
+                    m_DustParticleSystem.Play();
+                }
+
+                // Optional: Adjust emission rate based on speed
+                var emission = m_DustParticleSystem.emission;
+                float speedFactor = Mathf.Clamp01((Mathf.Abs(m_MovementInputValue) + Mathf.Abs(m_TurnInputValue)) / 2f);
+                emission.rateOverTime = 15f * speedFactor; // Adjust 20f to match your particle system
+            }
+            else
+            {
+                if (m_DustParticleSystem.isPlaying)
+                {
+                    m_DustParticleSystem.Stop();
+                }
+            }
+        }
+
+        private void FixedUpdate()
+        {
+            // Existing FixedUpdate code...
+            if (m_InputUser.InputUser.controlScheme.Value.name == "Gamepad" || m_IsDirectControl)
             {
                 var camForward = Camera.main.transform.forward;
                 camForward.y = 0;
                 camForward.Normalize();
                 var camRight = Vector3.Cross(Vector3.up, camForward);
-                
-                //this creates a vector based on camera look (e.g. pressing up mean we want to go up in the direction of the
-                //camera, not forward in the direction of the tank)
                 m_RequestedDirection = (camForward * m_MovementInputValue + camRight * m_TurnInputValue);
             }
-            
-            // Adjust the rigidbodies position and orientation in FixedUpdate.
-            Move ();
-            Turn ();
+
+            Move();
+            Turn();
         }
 
-
-        private void Move ()
+        private void Move()
         {
             float speedInput = 0.0f;
-            
-            // In direct control mode, the speed will depend on how far from the desired direction we are
             if (m_InputUser.InputUser.controlScheme.Value.name == "Gamepad" || m_IsDirectControl)
             {
                 speedInput = m_RequestedDirection.magnitude;
-                //if we are direct control, the speed of the move is based angle between current direction and the wanted
-                //direction. If under 90, full speed, then speed reduced between 90 and 180
                 speedInput *= 1.0f - Mathf.Clamp01((Vector3.Angle(m_RequestedDirection, transform.forward) - 90) / 90.0f);
             }
             else
             {
-                // in normal "tank control" the speed value is how much we press "up/forward"
                 speedInput = m_MovementInputValue;
             }
-            
-            // Create a vector in the direction the tank is facing with a magnitude based on the input, speed and the time between frames.
-            Vector3 movement = transform.forward * speedInput * m_Speed * Time.deltaTime;
 
-            // Apply this movement to the rigidbody's position.
+            Vector3 movement = transform.forward * speedInput * m_Speed * Time.deltaTime;
             m_Rigidbody.MovePosition(m_Rigidbody.position + movement);
         }
 
-
-        private void Turn ()
+        private void Turn()
         {
             Quaternion turnRotation;
-            // If in direct control...
             if (m_InputUser.InputUser.controlScheme.Value.name == "Gamepad" || m_IsDirectControl)
             {
-                // Compute the rotation needed to reach the desired direction
                 float angleTowardTarget = Vector3.SignedAngle(m_RequestedDirection, transform.forward, transform.up);
                 var rotatingAngle = Mathf.Sign(angleTowardTarget) * Mathf.Min(Mathf.Abs(angleTowardTarget), m_TurnSpeed * Time.deltaTime);
                 turnRotation = Quaternion.AngleAxis(-rotatingAngle, Vector3.up);
@@ -233,13 +224,19 @@ namespace Tanks.Complete
             else
             {
                 float turn = m_TurnInputValue * m_TurnSpeed * Time.deltaTime;
-
-                // Make this into a rotation in the y axis.
-                turnRotation = Quaternion.Euler (0f, turn, 0f);
+                turnRotation = Quaternion.Euler(0f, turn, 0f);
             }
 
-            // Apply this rotation to the rigidbody's rotation.
-            m_Rigidbody.MoveRotation (m_Rigidbody.rotation * turnRotation);
+            m_Rigidbody.MoveRotation(m_Rigidbody.rotation * turnRotation);
+        }
+
+        // Clean up the particle system when the tank is destroyed
+        private void OnDestroy()
+        {
+            if (m_DustParticleInstance != null)
+            {
+                Destroy(m_DustParticleInstance.gameObject);
+            }
         }
     }
 }

@@ -12,7 +12,8 @@ namespace Tanks.Complete
         [HideInInspector] public float m_ExplosionForce = 1000f;              // The amount of force added to a tank at the centre of the explosion.
         [HideInInspector] public float m_ExplosionRadius = 5f;                // The maximum distance away from the explosion tanks can be and are still affected.
 
-
+        [HideInInspector] public GameObject m_ExplosionVFX;
+        
         private void Start ()
         {
             // If it isn't destroyed by then, destroy the shell after its lifetime.
@@ -22,6 +23,9 @@ namespace Tanks.Complete
 
         private void OnTriggerEnter (Collider other)
         {
+            // Play explosion effect if it's assigned
+            PlayExplosionEffect();
+            
 			// Collect all the colliders in a sphere from the shell's current position to a radius of the explosion radius.
             Collider[] colliders = Physics.OverlapSphere (transform.position, m_ExplosionRadius, m_TankMask);
 
@@ -56,6 +60,31 @@ namespace Tanks.Complete
             Destroy (gameObject);
         }
 
+        private void PlayExplosionEffect()
+        {
+            // Check if explosion VFX is assigned
+            if (m_ExplosionVFX != null)
+            {
+                // Instantiate the explosion VFX prefab at the current position
+                GameObject explosionInstance = Instantiate(m_ExplosionVFX, transform.position, Quaternion.identity);
+
+                // Find all ParticleSystem components in the prefab (including children)
+                ParticleSystem[] particleSystems = explosionInstance.GetComponentsInChildren<ParticleSystem>();
+
+                // Play all ParticleSystems
+                float maxDuration = 0f;
+                foreach (ParticleSystem ps in particleSystems)
+                {
+                    ps.Play();
+                    // Calculate the maximum duration to destroy the prefab after all effects finish
+                    float duration = ps.main.duration + ps.main.startLifetime.constantMax;
+                    maxDuration = Mathf.Max(maxDuration, duration);
+                }
+
+                // Destroy the VFX prefab after the longest ParticleSystem finishes
+                Destroy(explosionInstance, maxDuration);
+            }
+        }
 
         private float CalculateDamage (Vector3 targetPosition)
         {
