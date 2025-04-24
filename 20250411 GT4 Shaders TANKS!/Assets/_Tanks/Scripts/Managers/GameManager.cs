@@ -1,8 +1,10 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
+using UnityEngine.Rendering.Universal;
 
 namespace Tanks.Complete
 {
@@ -49,7 +51,13 @@ namespace Tanks.Complete
         private PlayerData[] m_TankData;            // Data passed from the menu about each selected tank (at least 2, max 4)
         private int m_PlayerCount = 0;              // The number of players (2 to 4), decided from the number of PlayerData passed by the menu
         private TextMeshProUGUI m_TitleText;        // The text used to display game message. Automatically found as part of the Menu prefab
+        
+        [Header("Visual Effects")]
+        public Volume m_Volume;  // Reference to the volume in your scene
+        private ColorAdjustments m_ColorAdjustments;
+        private float m_OriginalSaturation;
 
+        
         private void Start()
         {
             m_CurrentState = GameState.MainMenu;
@@ -73,6 +81,19 @@ namespace Tanks.Complete
             {
                 Debug.LogError("You need to assign 4 tank prefab in the GameManager!");
             }
+            
+            // Find the volume if not assigned
+            if (m_Volume == null)
+                m_Volume = FindObjectOfType<Volume>();
+                
+            if (m_Volume != null && m_Volume.profile != null)
+            {
+                if (m_Volume.profile.TryGet(out m_ColorAdjustments))
+                {
+                    m_OriginalSaturation = m_ColorAdjustments.saturation.value;
+                }
+            }
+            
         }
 
         void GameStart()
@@ -192,6 +213,8 @@ namespace Tanks.Complete
             // As soon as the round starts reset the tanks and make sure they can't move.
             ResetAllTanks ();
             DisableTankControl ();
+            
+            SetBlackAndWhiteEffect(true);
 
             // Snap the camera's zoom and position to something appropriate for the reset tanks.
             m_CameraControl.SetStartPositionAndSize ();
@@ -202,6 +225,8 @@ namespace Tanks.Complete
 
             // Wait for the specified length of time until yielding control back to the game loop.
             yield return m_StartWait;
+            
+            SetBlackAndWhiteEffect(false);
         }
 
 
@@ -352,6 +377,14 @@ namespace Tanks.Complete
             for (int i = 0; i < m_PlayerCount; i++)
             {
                 m_SpawnPoints[i].DisableControl();
+            }
+        }
+        
+        private void SetBlackAndWhiteEffect(bool enabled)
+        {
+            if (m_ColorAdjustments != null)
+            {
+                m_ColorAdjustments.saturation.Override(enabled ? -100f : m_OriginalSaturation);
             }
         }
     }

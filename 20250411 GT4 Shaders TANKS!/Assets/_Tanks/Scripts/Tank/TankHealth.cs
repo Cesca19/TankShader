@@ -1,4 +1,6 @@
 ﻿using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.UI;
 
 namespace Tanks.Complete
@@ -23,11 +25,59 @@ namespace Tanks.Complete
         private float m_ShieldValue;                        // Percentage of reduced damage when the tank has a shield.
         private bool m_IsInvincible;                        // Is the tank invincible in this moment?
         private GameObject m_SmokeInstance;                 // Reference to the instantiated smoke particle system.
+        
+        [Header("Hit Effect")]
+        public float m_MaxVignetteIntensity = 0.5f;   // Maximum vignette intensity when hit
+        public float m_VignetteFadeSpeed = 2.0f;      // How quickly the vignette fades away
+        
+        public Volume m_PostProcessingVolume;        // Reference to your volume component in the scene
+        private Vignette m_Vignette;                  // Reference to the vignette effect
+        private float m_CurrentVignetteIntensity;     // Current intensity of the vignette effect
+    
+
 
         private void Awake()
         {
             // Set the slider max value to the max health the tank can have
             m_Slider.maxValue = m_StartingHealth;
+            
+            // Find the post-processing volume in the scene
+            m_PostProcessingVolume = FindObjectOfType<Volume>();
+            
+            // Find and set up the vignette effect
+            if (m_PostProcessingVolume != null && m_PostProcessingVolume.profile != null)
+            {
+                if (!m_PostProcessingVolume.profile.TryGet(out m_Vignette))
+                {
+                    Debug.LogWarning("Vignette effect not found in Volume profile!");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("No Post Processing Volume found in the scene!");
+            }
+        }
+        
+        private void Update()
+        {
+            // Gradually fade out the vignette effect using exponential decay
+            if (m_Vignette != null && m_Vignette.intensity.value > 0.01f)
+            {
+                // Using exponential decay: intensity = intensity * e^(-fadeSpeed * deltaTime)
+                // This makes higher fade speed values result in a slower fade
+                float newIntensity = m_Vignette.intensity.value * Mathf.Exp(-m_VignetteFadeSpeed * 0.1f * Time.deltaTime);
+        
+                // Ensure it doesn't get too small but never quite reaches zero
+                if (newIntensity < 0.01f)
+                    newIntensity = 0f;
+            
+                m_Vignette.intensity.Override(newIntensity);
+            }
+            else if (m_Vignette != null && m_Vignette.intensity.value > 0f && m_Vignette.intensity.value <= 0.01f)
+            {
+                // When it gets very small, set it to zero
+                m_Vignette.intensity.Override(0f);
+            }
         }
 
         private void OnDestroy()
@@ -64,6 +114,9 @@ namespace Tanks.Complete
             // Check if the tank is not invincible
             if (!m_IsInvincible)
             {
+                // Activate vignette effect when taking damage
+                ApplyVignetteEffect();
+                
                 // Reduce current health by the amount of damage done.
                 m_CurrentHealth -= amount * (1 - m_ShieldValue);
 
@@ -177,6 +230,23 @@ namespace Tanks.Complete
 
             // Turn the tank off.
             gameObject.SetActive(false);
+        }
+        
+        private void ApplyVignetteEffect()
+        {
+            if (m_Vignette != null)
+            {
+                // Calculate vignette intensity based on health percentage
+                float healthPercent = m_CurrentHealth / m_StartingHealth;
+                float damagePercent = 1f - healthPercent;
+                
+                // Set the vignette intensity proportional to health loss
+                // More intense as health decreases
+                float intensity = Mathf.Lerp(0, m_MaxVignetteIntensity, damagePercent);
+                
+                // Apply vignette effect
+                m_Vignette.intensity.Override(intensity);
+            }
         }
     }
 }

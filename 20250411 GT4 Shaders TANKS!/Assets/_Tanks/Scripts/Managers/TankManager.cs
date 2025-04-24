@@ -79,8 +79,10 @@ namespace Tanks.Complete
                     // If the material is the tank color one...
                     if (renderer.materials[j].name.Contains("TankColor"))
                     {
-                        // change its color to the player color
-                        renderer.materials[j].color = m_PlayerColor;
+                        if (renderer.materials[j].HasProperty("_BaseColor"))
+                        {
+                            renderer.materials[j].SetColor("_BaseColor", m_PlayerColor);
+                        }
                     }
                 }
             }

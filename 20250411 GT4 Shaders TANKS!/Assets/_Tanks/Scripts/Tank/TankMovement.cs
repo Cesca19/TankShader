@@ -168,7 +168,7 @@ namespace Tanks.Complete
                 // Optional: Adjust emission rate based on speed
                 var emission = m_DustParticleSystem.emission;
                 float speedFactor = Mathf.Clamp01((Mathf.Abs(m_MovementInputValue) + Mathf.Abs(m_TurnInputValue)) / 2f);
-                emission.rateOverTime = 20f * speedFactor; // Adjust 20f to match your particle system
+                emission.rateOverTime = 15f * speedFactor; // Adjust 20f to match your particle system
             }
             else
             {
