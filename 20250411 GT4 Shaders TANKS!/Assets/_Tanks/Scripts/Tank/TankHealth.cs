@@ -18,7 +18,7 @@ namespace Tanks.Complete
         public float m_MinSmokeEmissionRate = 10f;          // Minimum emission rate for smoke (when health is at m_LowHealthPercentThreshold).
         public float m_MaxSmokeEmissionRate = 50f;          // Maximum emission rate for smoke (when health is at 0).
         [HideInInspector] public bool m_HasShield;          // Has the tank picked up a shield power up?
-        
+
         private AudioSource m_ExplosionAudio;               // The audio source to play when the tank explodes.
         private float m_CurrentHealth;                      // How much health the tank currently has.
         private bool m_Dead;                                // Has the tank been reduced beyond zero health yet?
@@ -33,8 +33,11 @@ namespace Tanks.Complete
         public Volume m_PostProcessingVolume;        // Reference to your volume component in the scene
         private Vignette m_Vignette;                  // Reference to the vignette effect
         private float m_CurrentVignetteIntensity;     // Current intensity of the vignette effect
-    
 
+        private float dissolveDuration = 2.0f;
+        private float dissolveValue = 0f;
+        private bool isDissolving = false;
+        MeshRenderer[] renderers;
 
         private void Awake()
         {
@@ -56,6 +59,7 @@ namespace Tanks.Complete
             {
                 Debug.LogWarning("No Post Processing Volume found in the scene!");
             }
+            renderers = transform.gameObject.GetComponentsInChildren<MeshRenderer>();
         }
         
         private void Update()
@@ -77,6 +81,21 @@ namespace Tanks.Complete
             {
                 // When it gets very small, set it to zero
                 m_Vignette.intensity.Override(0f);
+            }
+
+            if (isDissolving)
+            {
+                dissolveValue += Time.deltaTime / dissolveDuration;
+                for (int i = 0; i < renderers.Length; i++) {
+                    var renderer = renderers[i];
+                    for (int j = 0; j < renderer.materials.Length; ++j)
+                        renderer.materials[j].SetFloat("_Dissolve", dissolveValue);
+                } 
+                if (dissolveValue >= 1f)
+                {
+                    isDissolving = false;
+                    gameObject.SetActive(false);
+                }
             }
         }
 
@@ -229,7 +248,8 @@ namespace Tanks.Complete
             }
 
             // Turn the tank off.
-            gameObject.SetActive(false);
+            // gameObject.SetActive(false);
+            isDissolving = true;
         }
         
         private void ApplyVignetteEffect()
