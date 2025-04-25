@@ -360,6 +360,16 @@ namespace Tanks.Complete
             {
                 m_SpawnPoints[i].Reset();
             }
+
+            for (int k = 0; k < m_PlayerCount; k++)
+            {
+               MeshRenderer[] renderers = m_SpawnPoints[k].m_Instance.GetComponentsInChildren<MeshRenderer>();
+               for (int i = 0; i < renderers.Length; i++) {
+                    var renderer = renderers[i];
+                    for (int j = 0; j < renderer.materials.Length; j++)
+                        renderer.materials[j].SetFloat("_Dissolve", 0);
+                } 
+            }
         }
 
 
